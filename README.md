@@ -1,16 +1,23 @@
-# wake_app
+Projeto WAKE UP
+Este é um projeto Flutter que funciona como um gerenciador de tarefas e alarmes. A ideia é ter uma aplicação simples para ajudar a organizar o dia e garantir que as tarefas sejam feitas.
 
-A new Flutter project.
+Como Rodar
+O projeto foi configurado para rodar de forma otimizada em um Codespace, mantendo a persistência dos dados.
 
-## Getting Started
+Para iniciar o projeto no Codespace, use o seguinte comando:
 
-This project is a starting point for a Flutter application.
+flutter run -d web-server --release
 
-A few resources to get you started if this is your first Flutter project:
+Observação: O parâmetro --release garante a melhor performance, e o -d web-server é o que permite a persistência no ambiente do Codespace.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Se você estiver rodando localmente (na sua máquina), o comando padrão do Flutter também funciona:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+flutter run
+
+Estrutura
+O código está organizado da seguinte forma:
+•	lib/screens/: Contém as telas principais (Alarmes, Tarefas, Cronômetro).
+•	lib/database/: Lógica de banco de dados usando drift para persistência.
+•	lib/models/: Definições dos modelos de dados.
+
+Qualquer dúvida, é só dar uma olhada nos arquivos principais em lib/.
