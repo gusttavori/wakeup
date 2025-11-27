@@ -1,29 +1,35 @@
 name: wakeup_app
 description: A new Flutter project for WakeUp app.
 
-publish_to: 'none' # Remove this line if you want to publish to pub.dev
+publish_to: 'none'
 
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0' # Ajuste conforme sua versão do Flutter SDK
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
-  sqflite: ^2.3.3
-  path: ^1.9.0
-
   flutter:
     sdk: flutter
-  
-  flutter_localizations: # Adicionado para MaterialLocalizations
+
+  # Localizations
+  flutter_localizations:
     sdk: flutter
+
+  # Persistência do cronômetro (FUNDAMENTAL)
+  shared_preferences: ^2.2.2
+
+  # Seu banco de dados local (caso use)
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  path_provider: ^2.1.5
+
+  # Drift (ORM)
+  drift: ^2.29.0
+  drift_flutter: ^0.2.7
 
   cupertino_icons: ^1.0.2
   http: ^1.6.0
-  drift: ^2.29.0
-
-  path_provider: ^2.1.5
-  drift_flutter: ^0.2.7
 
 dev_dependencies:
   drift_dev: ^2.29.0
@@ -37,12 +43,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Para adicionar a fonte Inter (fallback para SF Pro)
-  # 1. Baixe os arquivos da fonte (ex: Inter-Regular.ttf, Inter-SemiBold.ttf) do Google Fonts.
-  # 2. Crie uma pasta 'assets/fonts' na raiz do seu projeto.
-  # 3. Coloque os arquivos .ttf dentro dela.
-  # 4. Descomente as linhas abaixo:
-  #
+  # Fonts (descomente quando adicionar os arquivos)
   # fonts:
   #   - family: Inter
   #     fonts:

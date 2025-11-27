@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'package:flutter/material.dart'; // Apenas Material agora!
+import 'dart:html' as html;
+import 'package:flutter/material.dart';
 import '../../app_theme.dart';
 
 // =============================================
-// 6. TELA DE TEMPORIZADOR (100% Material)
+// 6. TELA DE TEMPORIZADOR (com Persistência Web)
 // =============================================
 
 class TimerScreen extends StatefulWidget {
@@ -17,93 +18,162 @@ enum TimerState { idle, running, paused }
 
 class _TimerScreenState extends State<TimerScreen> {
   TimerState _state = TimerState.idle;
+
   Duration _duration = const Duration(minutes: 5);
   Duration _remaining = const Duration(minutes: 5);
+
   Timer? _timer;
 
-  // Formatação HH:MM:SS ou MM:SS
+  int? _lastTickTimestamp; // timestamp em ms
+
+  // ---------------------------------------------
+  //   PERSISTÊNCIA
+  // ---------------------------------------------
+
+  void _saveState() {
+    final data = {
+      "state": _state.index,
+      "duration": _duration.inMilliseconds,
+      "remaining": _remaining.inMilliseconds,
+      "lastTick": _lastTickTimestamp,
+    };
+
+    html.window.localStorage["timer_state"] = data.toString();
+  }
+
+  void _loadState() {
+    final raw = html.window.localStorage["timer_state"];
+    if (raw == null) return;
+
+    try {
+      final map = _parseMap(raw);
+
+      _state = TimerState.values[map["state"] ?? 0];
+
+      _duration = Duration(milliseconds: map["duration"] ?? 300000);
+      _remaining = Duration(milliseconds: map["remaining"] ?? 300000);
+
+      _lastTickTimestamp = map["lastTick"];
+
+      // Se estava rodando, recalcular tempo real passado
+      if (_state == TimerState.running && _lastTickTimestamp != null) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final diff = now - _lastTickTimestamp!;
+
+        _remaining -= Duration(milliseconds: diff);
+
+        if (_remaining.isNegative) {
+          _remaining = Duration.zero;
+          _state = TimerState.idle;
+        }
+      }
+    } catch (_) {}
+  }
+
+  Map<String, dynamic> _parseMap(String raw) {
+    // converte "{key: value}" para mapa real
+    raw = raw.substring(1, raw.length - 1); // remove {}
+    final entries = raw.split(", ");
+    final map = <String, dynamic>{};
+    for (final e in entries) {
+      final kv = e.split(": ");
+      map[kv[0]] = int.tryParse(kv[1]) ?? kv[1];
+    }
+    return map;
+  }
+
+  // ---------------------------------------------
+  //   INICIALIZAÇÃO
+  // ---------------------------------------------
+  @override
+  void initState() {
+    super.initState();
+    _loadState();
+    _startAutoLoop();
+  }
+
+  void _startAutoLoop() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_state == TimerState.running) {
+        setState(() {
+          _remaining -= const Duration(seconds: 1);
+
+          if (_remaining <= Duration.zero) {
+            _remaining = Duration.zero;
+            _state = TimerState.idle;
+            _showFinishDialog();
+          }
+
+          _lastTickTimestamp = DateTime.now().millisecondsSinceEpoch;
+        });
+
+        _saveState();
+      }
+    });
+  }
+
+  // =============================================
+  //  L   Ó   G   I   C   A
+  // =============================================
+
   String _formatTimerTime(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    
     if (duration.inHours > 0) {
-      return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
+      return "${twoDigits(duration.inHours)}:"
+             "${twoDigits(duration.inMinutes % 60)}:"
+             "${twoDigits(duration.inSeconds % 60)}";
     }
-    return "$twoDigitMinutes:$twoDigitSeconds";
+    return "${twoDigits(duration.inMinutes % 60)}:"
+           "${twoDigits(duration.inSeconds % 60)}";
   }
 
   void _startTimer() {
-    if (_state == TimerState.idle) {
-      _remaining = _duration;
-    }
     setState(() {
+      if (_state == TimerState.idle) {
+        _remaining = _duration;
+      }
       _state = TimerState.running;
+      _lastTickTimestamp = DateTime.now().millisecondsSinceEpoch;
     });
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_remaining.inSeconds > 0) {
-          _remaining = _remaining - const Duration(seconds: 1);
-        } else {
-          _timer?.cancel();
-          _state = TimerState.idle;
-          _remaining = _duration;
-          
-          // Alerta Nativo Material
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Temporizador Concluído'),
-              content: Text('${_duration.inMinutes} minutos se passaram.'),
-              actions: [
-                TextButton(
-                  child: const Text('OK'),
-                  onPressed: () => Navigator.of(context).pop(),
-                )
-              ],
-            ),
-          );
-        }
-      });
-    });
+
+    _saveState();
   }
 
   void _pauseTimer() {
-    _timer?.cancel();
     setState(() {
       _state = TimerState.paused;
+      _lastTickTimestamp = null;
     });
+    _saveState();
   }
 
   void _resetTimer() {
-    _timer?.cancel();
     setState(() {
       _state = TimerState.idle;
       _remaining = _duration;
+      _lastTickTimestamp = null;
     });
+    _saveState();
   }
 
-  void _setPreset(Duration duration) {
+  void _setPreset(Duration d) {
     setState(() {
-      _duration = duration;
-      _remaining = duration;
+      _duration = d;
+      _remaining = d;
     });
+    _saveState();
   }
 
-  // Lógica de Seleção 100% Material
   Future<void> _pickDuration() async {
-    // Usamos o TimePicker nativo do Android, mas interpretamos Hora como "Horas de duração"
-    // e Minutos como "Minutos de duração".
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(
-        hour: _duration.inHours, 
-        minute: _duration.inMinutes.remainder(60)
+        hour: _duration.inHours,
+        minute: _duration.inMinutes % 60,
       ),
-      initialEntryMode: TimePickerEntryMode.input, // Abre teclado numérico direto (melhor para timers)
-      helpText: 'DEFINIR DURAÇÃO (H:M)', // Label customizada
-      builder: (BuildContext context, Widget? child) {
-        // Forçamos o modo 24h para não aparecer AM/PM, pois é uma duração
+      initialEntryMode: TimePickerEntryMode.input,
+      helpText: 'DEFINIR DURAÇÃO (H:M)',
+      builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
           child: child!,
@@ -113,22 +183,70 @@ class _TimerScreenState extends State<TimerScreen> {
 
     if (picked != null) {
       setState(() {
-        _duration = Duration(hours: picked.hour, minutes: picked.minute);
+        _duration =
+            Duration(hours: picked.hour, minutes: picked.minute);
         _remaining = _duration;
       });
+      _saveState();
     }
+  }
+
+  void _showFinishDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Temporizador concluído"),
+        content: Text(
+            "${_duration.inMinutes} minutos se passaram."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
+          )
+        ],
+      ),
+    );
+  }
+
+  // =============================================
+  //  I   N   T   E   R   F   A   C   E
+  // =============================================
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Temporizador", style: AppTextStyles.navTitle),
+        backgroundColor: AppColors.backgroundLight,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: _state == TimerState.idle
+                  ? _buildPickerDisplay()
+                  : _buildProgress(),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 40),
+              child: _buildTimerButtons(),
+            )
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPickerDisplay() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Display Gigante do Tempo
         InkWell(
-          onTap: _pickDuration, // Abre o TimePicker Material
+          onTap: _pickDuration,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 Text(
@@ -136,88 +254,80 @@ class _TimerScreenState extends State<TimerScreen> {
                   style: const TextStyle(
                     fontSize: 80,
                     fontWeight: FontWeight.w200,
+                    fontFamily: 'monospace',
                     color: AppColors.primaryBlue,
-                    fontFamily: 'monospace'
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  "Toque para ajustar",
-                  style: AppTextStyles.caption,
-                )
+                const Text("Toque para ajustar", style: AppTextStyles.caption)
               ],
             ),
           ),
         ),
-        
         const SizedBox(height: 40),
-        
-        // Chips de Presets
         Wrap(
           spacing: 12,
           children: [
             PresetChip(
-                label: '5 min',
-                duration: const Duration(minutes: 5),
-                onTap: _setPreset,
-                isSelected: _duration == const Duration(minutes: 5)),
+              label: '5 min',
+              duration: const Duration(minutes: 5),
+              onTap: _setPreset,
+              isSelected: _duration == const Duration(minutes: 5),
+            ),
             PresetChip(
-                label: '10 min',
-                duration: const Duration(minutes: 10),
-                onTap: _setPreset,
-                isSelected: _duration == const Duration(minutes: 10)),
+              label: '10 min',
+              duration: const Duration(minutes: 10),
+              onTap: _setPreset,
+              isSelected: _duration == const Duration(minutes: 10),
+            ),
             PresetChip(
-                label: '15 min',
-                duration: const Duration(minutes: 15),
-                onTap: _setPreset,
-                isSelected: _duration == const Duration(minutes: 15)),
+              label: '15 min',
+              duration: const Duration(minutes: 15),
+              onTap: _setPreset,
+              isSelected: _duration == const Duration(minutes: 15),
+            ),
           ],
-        ),
+        )
       ],
     );
   }
 
   Widget _buildProgress() {
-    double progress = 1.0;
-    if (_duration.inSeconds > 0) {
-      progress = _remaining.inSeconds / _duration.inSeconds;
-    }
+    final progress =
+        _duration.inSeconds == 0 ? 1 : _remaining.inSeconds / _duration.inSeconds;
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 280,
-          height: 280,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CircularProgressIndicator(
-                value: 1.0,
-                strokeWidth: 12,
-                color: Colors.grey[200],
-              ),
-              CircularProgressIndicator(
-                value: progress,
-                strokeWidth: 12,
-                backgroundColor: Colors.transparent,
-                color: AppColors.primaryBlue,
-                strokeCap: StrokeCap.round,
-              ),
-              Center(
-                child: Text(
-                  _formatTimerTime(_remaining),
-                  style: const TextStyle(
-                    fontSize: 56, 
-                    fontWeight: FontWeight.w300,
-                    fontFamily: 'monospace'
-                  ),
+    return Center(
+      child: SizedBox(
+        width: 280,
+        height: 280,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CircularProgressIndicator(
+              value: 1.0,
+              strokeWidth: 12,
+              color: Colors.grey[200],
+            ),
+            CircularProgressIndicator(
+              value: progress.toDouble(),
+              strokeWidth: 12,
+              color: AppColors.primaryBlue,
+              backgroundColor: Colors.transparent,
+              strokeCap: StrokeCap.round,
+            ),
+            Center(
+              child: Text(
+                _formatTimerTime(_remaining),
+                style: const TextStyle(
+                  fontSize: 56,
+                  fontWeight: FontWeight.w300,
+                  fontFamily: 'monospace',
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -233,74 +343,59 @@ class _TimerScreenState extends State<TimerScreen> {
                 backgroundColor: Colors.grey[200]!,
                 onPressed: null),
             StopwatchButton(
-                label: 'Iniciar',
-                foregroundColor: const Color(0xFF1B5E20),
-                backgroundColor: const Color(0xFFA5D6A7),
-                onPressed: _startTimer),
+              label: 'Iniciar',
+              foregroundColor: const Color(0xFF1B5E20),
+              backgroundColor: const Color(0xFFA5D6A7),
+              onPressed: _startTimer,
+            ),
           ],
         );
+
       case TimerState.running:
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             StopwatchButton(
-                label: 'Zerar',
-                foregroundColor: Colors.grey[800]!,
-                backgroundColor: Colors.grey[300]!,
-                onPressed: _resetTimer),
+              label: 'Zerar',
+              foregroundColor: Colors.grey[800]!,
+              backgroundColor: Colors.grey[300]!,
+              onPressed: _resetTimer,
+            ),
             StopwatchButton(
-                label: 'Pausar',
-                foregroundColor: const Color(0xFFB71C1C),
-                backgroundColor: const Color(0xFFFFCDD2),
-                onPressed: _pauseTimer),
+              label: 'Pausar',
+              foregroundColor: const Color(0xFFB71C1C),
+              backgroundColor: const Color(0xFFFFCDD2),
+              onPressed: _pauseTimer,
+            ),
           ],
         );
+
       case TimerState.paused:
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             StopwatchButton(
-                label: 'Zerar',
-                foregroundColor: Colors.grey[800]!,
-                backgroundColor: Colors.grey[300]!,
-                onPressed: _resetTimer),
+              label: 'Zerar',
+              foregroundColor: Colors.grey[800]!,
+              backgroundColor: Colors.grey[300]!,
+              onPressed: _resetTimer,
+            ),
             StopwatchButton(
-                label: 'Retomar',
-                foregroundColor: const Color(0xFF1B5E20),
-                backgroundColor: const Color(0xFFA5D6A7),
-                onPressed: _startTimer),
+              label: 'Retomar',
+              foregroundColor: const Color(0xFF1B5E20),
+              backgroundColor: const Color(0xFFA5D6A7),
+              onPressed: _startTimer,
+            ),
           ],
         );
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Temporizador', style: AppTextStyles.navTitle),
-        centerTitle: false,
-        backgroundColor: AppColors.backgroundLight,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: _state == TimerState.idle ? _buildPickerDisplay() : _buildProgress(),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 40.0),
-              child: _buildTimerButtons(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-// --- PRESET CHIP (Material) ---
+// --------------------------------------------
+//    COMPONENTES
+// --------------------------------------------
+
 class PresetChip extends StatelessWidget {
   final String label;
   final Duration duration;
@@ -312,7 +407,7 @@ class PresetChip extends StatelessWidget {
     required this.label,
     required this.duration,
     required this.onTap,
-    this.isSelected = false,
+    required this.isSelected,
   }) : super(key: key);
 
   @override
@@ -320,18 +415,17 @@ class PresetChip extends StatelessWidget {
     return ActionChip(
       label: Text(label),
       onPressed: () => onTap(duration),
-      backgroundColor: isSelected ? AppColors.primaryBlue.withOpacity(0.2) : Colors.grey[200],
+      backgroundColor:
+          isSelected ? AppColors.primaryBlue.withOpacity(0.2) : Colors.grey[200],
       labelStyle: TextStyle(
         color: isSelected ? AppColors.primaryBlue : AppColors.textPrimaryLight,
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
-      side: BorderSide.none,
       shape: const StadiumBorder(),
     );
   }
 }
 
-// --- STOPWATCH BUTTON (Material FilledButton) ---
 class StopwatchButton extends StatelessWidget {
   final String label;
   final Color foregroundColor;
@@ -343,7 +437,7 @@ class StopwatchButton extends StatelessWidget {
     required this.label,
     required this.foregroundColor,
     required this.backgroundColor,
-    required this.onPressed,
+    this.onPressed,
   }) : super(key: key);
 
   @override
@@ -357,12 +451,8 @@ class StopwatchButton extends StatelessWidget {
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
           shape: const CircleBorder(),
-          padding: EdgeInsets.zero,
         ),
-        child: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
+        child: Text(label, style: const TextStyle(fontSize: 16)),
       ),
     );
   }
