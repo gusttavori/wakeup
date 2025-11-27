@@ -1,0 +1,57 @@
+name: wakeup_app
+description: A new Flutter project for WakeUp app.
+
+publish_to: 'none' # Remove this line if you want to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0' # Ajuste conforme sua versão do Flutter SDK
+
+dependencies:
+  sqflite: ^2.3.3
+  path: ^1.9.0
+
+  flutter:
+    sdk: flutter
+  
+  flutter_localizations: # Adicionado para MaterialLocalizations
+    sdk: flutter
+
+  cupertino_icons: ^1.0.2
+  http: ^1.6.0
+  drift: ^2.29.0
+
+  path_provider: ^2.1.5
+  drift_flutter: ^0.2.7
+
+dev_dependencies:
+  drift_dev: ^2.29.0
+  build_runner: ^2.10.4
+
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Para adicionar a fonte Inter (fallback para SF Pro)
+  # 1. Baixe os arquivos da fonte (ex: Inter-Regular.ttf, Inter-SemiBold.ttf) do Google Fonts.
+  # 2. Crie uma pasta 'assets/fonts' na raiz do seu projeto.
+  # 3. Coloque os arquivos .ttf dentro dela.
+  # 4. Descomente as linhas abaixo:
+  #
+  # fonts:
+  #   - family: Inter
+  #     fonts:
+  #       - asset: assets/fonts/Inter-Regular.ttf
+  #       - asset: assets/fonts/Inter-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Inter-SemiBold.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/Inter-Bold.ttf
+  #         weight: 700
+  #       - asset: assets/fonts/Inter-Light.ttf
+  #         weight: 300
